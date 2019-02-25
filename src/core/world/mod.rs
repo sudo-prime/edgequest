@@ -712,8 +712,8 @@ impl World {
           filter(&buffer[x + 1][y + 1]) +
           filter(&buffer[x - 1][y - 1]) +
           filter(&buffer[x + 1][y - 1]) +
-          filter(&buffer[x - 1][y + 1]
-        )) + SC_BLOOM_CUTOFF)
+          filter(&buffer[x - 1][y + 1])
+        ) + SC_BLOOM_CUTOFF)
 
         // Decay factor
         * SC_DECAY)

@@ -28,16 +28,18 @@ use self::camera::Camera;
 pub mod rgb;
 pub use self::rgb::RGB;
 
+use core::creature::Actions;
+
 ///
 /// Tile colors
 ///
 
-// Water colors
-const WATER_COLORS : [RGB; 3] = [
-  RGB(51, 133, 200),
-  RGB(57, 144, 200),
-  RGB(54, 138, 200)
-];
+/// Water color range
+const WATER_MIN : RGB = RGB(25, 75, 80);
+const WATER_MAX : RGB = RGB(30, 95, 110);
+
+// Water wave dampening
+const WATER_DAMPENING : f32 = 0.6;
 
 ///
 /// Tile color manipulation
@@ -387,6 +389,143 @@ impl Renderer {
 
   }
 
+  fn draw_water_ripples(&mut self, dungeon : &mut Dungeon) {
+    let buffer = dungeon.clone();
+
+    for x in 0..dungeon.width {
+      for y in 0..dungeon.height {
+        match &dungeon[x][y].tiletype {
+          tile::Type::Water => {
+            // BEGIN SPAGHETTI
+            let filter = |tile: &Tile| -> f32 {
+              if RGB::transition_distance(&WATER_MIN, &WATER_MAX, &tile.get_bg()) < 0.1 { 0.1 } else { 1.0 }
+            };
+            let up = if dungeon.is_valid_pos(x as isize, (y as isize - 1) as isize) {
+              match &buffer[x][y - 1].tiletype {
+                tile::Type::Water => {
+                  RGB::transition_distance(&WATER_MIN, &WATER_MAX, &buffer[x][y - 1].get_bg())
+                },
+                _ => {0.0}
+              }
+            } else {
+              0.0
+            };
+
+            let up_left = if dungeon.is_valid_pos((x as isize - 1) as isize, (y as isize - 1) as isize) {
+              match &buffer[x - 1][y - 1].tiletype {
+                tile::Type::Water => {
+                  RGB::transition_distance(&WATER_MIN, &WATER_MAX, &buffer[x - 1][y - 1].get_bg())
+                },
+                _ => {0.0}
+              }
+            } else {
+              0.0
+            };
+
+            let up_right = if dungeon.is_valid_pos((x as isize + 1) as isize, (y as isize - 1) as isize) {
+              match &buffer[x + 1][y - 1].tiletype {
+                tile::Type::Water => {
+                  RGB::transition_distance(&WATER_MIN, &WATER_MAX, &buffer[x + 1][y - 1].get_bg())
+                },
+                _ => {0.0}
+              }
+            } else {
+              0.0
+            };
+
+            let down = if dungeon.is_valid_pos(x as isize, (y + 1) as isize) {
+              match &buffer[x][y + 1].tiletype {
+                tile::Type::Water => {
+                  RGB::transition_distance(&WATER_MIN, &WATER_MAX, &buffer[x][y + 1].get_bg())
+                },
+                _ => {0.0}
+              }    
+            } else {
+              0.0
+            };
+
+            let down_left = if dungeon.is_valid_pos((x as isize - 1) as isize, (y as isize + 1) as isize) {
+              match &buffer[x - 1][y + 1].tiletype {
+                tile::Type::Water => {
+                  RGB::transition_distance(&WATER_MIN, &WATER_MAX, &buffer[x - 1][y + 1].get_bg())
+                },
+                _ => {0.0}
+              }
+            } else {
+              0.0
+            };
+
+            let down_right = if dungeon.is_valid_pos((x as isize + 1) as isize, (y as isize + 1) as isize) {
+              match &buffer[x + 1][y + 1].tiletype {
+                tile::Type::Water => {
+                  RGB::transition_distance(&WATER_MIN, &WATER_MAX, &buffer[x + 1][y + 1].get_bg())
+                },
+                _ => {0.0}
+              }
+            } else {
+              0.0
+            };
+
+            let left = if dungeon.is_valid_pos((x as isize - 1) as isize, y as isize) {
+              match &buffer[x - 1][y].tiletype {
+                tile::Type::Water => {
+                  RGB::transition_distance(&WATER_MIN, &WATER_MAX, &buffer[x - 1][y].get_bg())
+                },
+                _ => {0.0}
+              }  
+            } else {
+              0.0
+            };
+
+            let right = if dungeon.is_valid_pos((x + 1) as isize, y as isize) {
+              match &buffer[x + 1][y].tiletype {
+                tile::Type::Water => {
+                  RGB::transition_distance(&WATER_MIN, &WATER_MAX, &buffer[x + 1][y].get_bg())
+                },
+                _ => {0.0}
+              }  
+            } else {
+              0.0
+            };
+
+            let mut wave_num : f32 = 0.0;
+
+            wave_num += up;
+            wave_num += up_left;
+            wave_num += up_right;
+            wave_num += down;
+            wave_num += down_left;
+            wave_num += down_right;
+            wave_num += left;
+            wave_num += right;
+
+            wave_num = wave_num /
+
+            // Divide by num tiles present, to get the average
+            // Add some value to reduce size of bloom
+            (((
+              filter(&buffer[x - 1][  y  ]) +
+              filter(&buffer[x + 1][  y  ]) +
+              filter(&buffer[  x  ][y - 1]) +
+              filter(&buffer[  x  ][y + 1]) +
+              filter(&buffer[x + 1][y + 1]) +
+              filter(&buffer[x - 1][y - 1]) +
+              filter(&buffer[x + 1][y - 1]) +
+              filter(&buffer[x - 1][y + 1]
+            )) + 0.05)
+
+            // Decay factor
+            * 0.1);
+            let current_tile = &mut dungeon[x][y];
+            current_tile.set_bg(RGB::transition_between(&WATER_MIN, &WATER_MAX, wave_num));
+            // END SPAGHETTI
+          },
+          _ => {}
+        }
+      }
+    }
+  }
+
   ///
   /// Draw the contents of the world from the player's point of view
   /// 
@@ -403,6 +542,9 @@ impl Renderer {
     // Move camera to player's position
     self.camera.move_to(world.player.actor.pos);
 
+    // Compute water waves (CURRENTLY DISABLED)
+    // self.draw_water_ripples(&mut world.floor.dun);
+
     //
     // Draw tiles
     //
@@ -416,13 +558,23 @@ impl Renderer {
           if world.tcod_map.is_in_fov(x as i32, y as i32) {
 
             // Update tile if possible
-            match &world.floor.dun[x][y].tiletype {
+            match world.floor.dun[x][y].tiletype {
               tile::Type::Water => {
-                &world.floor.dun[x][y].set_bg(*rand::thread_rng().choose(&WATER_COLORS).unwrap());
+                // CODE MEANT FOR WAVE SIMULATION (CURRENTLY DISABLED)
+                // if x == world.player.actor.pos.x as usize && y == world.player.actor.pos.y as usize {
+                //   match world.player.state {
+                //     Actions::Move => world.floor.dun[x][y].set_bg(WATER_MAX),
+                //     _ => {}
+                //   }
+                // }
+
+                // Random noise
+                let amount : f32 = rand::thread_rng().next_f32();
+                &world.floor.dun[x][y].set_bg(RGB::transition_between(&WATER_MIN, &WATER_MAX, amount));
               },
               _ => {}
             }
-
+            
             // Draw a tile slightly more vibrant than it actually is to emulate torchlight
             self.draw_renderable(con, Pos::from_usize(x, y), &yellowish(&world.floor.dun[x][y]));
 

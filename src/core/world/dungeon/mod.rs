@@ -271,7 +271,7 @@ impl Dungeon {
           match grid[x][y].tiletype {
             tile::Type::Wall(_) | tile::Type::Stair(_) => {},
             _ => {
-              grid[x][y].set_bg(RGB(57, 144, 255));
+              grid[x][y].set_bg(RGB(25, 75, 80));
               grid[x][y].tiletype = tile::Type::Water;
             }
           }
@@ -552,6 +552,14 @@ impl Dungeon {
       }
 
     }
+  }
+
+  pub fn is_valid_pos(&self, x: isize, y: isize) -> bool {
+    // Conversion to usize
+    let ux = x as usize;
+    let uy = y as usize;
+
+    return ux > 0 && ux < self.width - 1 && uy > 0 && uy < self.height - 1 && tile::walkable(&self[ux][uy]);
   }
 
   ///
